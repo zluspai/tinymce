@@ -63,54 +63,61 @@ tinymce.util.Quirks = function(editor) {
 	 * This code is a bit of a hack and hopefully it will be fixed soon in WebKit.
 	 */
 	function cleanupStylesWhenDeleting() {
-		function removeMergedFormatSpans(isDelete) {
-			var rng, blockElm, wrapperElm, bookmark, container, offset;
+		function deleteContent(forward) {
+			var container, offset, node, rng, sibling;
 
-			function isAtStartOrEndOfElm() {
-				if (container.nodeType == 3) {
-					if (isDelete && offset == container.length) {
-						return true;
+			function hasNonEmptySibling(node) {
+				while (node = node[forward ? 'nextSibling' : 'previousSibling']) {
+					if (forward && node.nodeName == 'BR' && !node.nextSibling) {
+						return false;
 					}
 
-					if (!isDelete && offset === 0) {
+					if (node.nodeType != 3 || node.data.length != 0) {
 						return true;
 					}
 				}
+			}
+
+			function mergeSiblingBlocks(from, to) {
+				if (to.lastChild.nodeName == 'BR') {
+					dom.remove(to.lastChild);
+				}
+
+				while (from.firstChild) {
+					to.appendChild(from.firstChild);
+				}
+
+				dom.remove(from);
 			}
 
 			rng = selection.getRng();
-			container = rng[(isDelete ? 'start' : 'end') + 'Container'];
-			offset = rng[(isDelete ? 'start' : 'end') + 'Offset'];
+			container = rng.startContainer;
+			offset = rng.startOffset;
 
-			if (container.nodeType == 3) {
-				blockElm = dom.getParent(rng.startContainer, dom.isBlock);
+			if (rng.collapsed && container.nodeType == 3 && offset == (forward ? container.length : 0)) {
+				node = container;
+				while (node && !dom.isBlock(node)) {
+					if (hasNonEmptySibling(node)) {
+						return false;
+					}
 
-				// On delete clone the root span of the next block element
-				if (isDelete) {
-					blockElm = dom.getNext(blockElm, dom.isBlock);
+					node = node.parentNode;
 				}
 
-				if (blockElm && isAtStartOrEndOfElm()) {
-					// Wrap children of block in a EM and let WebKit stick is
-					// runtime styles junk into that EM
-					wrapperElm = dom.create('em', {'id': '__mceDel'});
+				if (node) {
+					sibling = node[forward ? 'nextSibling' : 'previousSibling'];
 
-					each(tinymce.grep(blockElm.childNodes), function(node) {
-						wrapperElm.appendChild(node);
-					});
+					if (dom.isBlock(sibling)) {
+						if (forward) {
+							mergeSiblingBlocks(sibling, node);
+						} else {
+							mergeSiblingBlocks(node, sibling);
+						}
+					}
 
-					blockElm.appendChild(wrapperElm);
+					selection.setCursorLocation(container, offset);
+					return true;
 				}
-			}
-
-			// Do the backspace/delete action
-			editor.getDoc().execCommand(isDelete ? 'ForwardDelete' : 'Delete', false, null);
-
-			// Remove temp wrapper element
-			if (wrapperElm) {
-				bookmark = selection.getBookmark();
-				dom.remove(dom.get('__mceDel'), true);
-				selection.moveToBookmark(bookmark);
 			}
 		}
 
@@ -119,12 +126,13 @@ tinymce.util.Quirks = function(editor) {
 
 			isDelete = e.keyCode == DELETE;
 			if (!isDefaultPrevented(e) && (isDelete || e.keyCode == BACKSPACE) && !VK.modifierPressed(e)) {
-				e.preventDefault();
-				removeMergedFormatSpans(isDelete);
+				if (deleteContent(isDelete)) {
+					e.preventDefault();
+				}
 			}
 		});
 
-		editor.addCommand('Delete', function() {removeMergedFormatSpans();});
+		editor.addCommand('Delete', function() {deleteContent(true);});
 	};
 	
 	/**
