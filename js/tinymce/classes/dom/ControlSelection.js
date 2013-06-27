@@ -24,7 +24,7 @@ define("tinymce/dom/ControlSelection", [
 		var dom = editor.dom, each = Tools.each;
 		var selectedElm, selectedElmGhost, resizeHandles, selectedHandle;
 		var startX, startY, selectedElmX, selectedElmY, startW, startH, ratio, resizeStarted;
-		var width, height, editableDoc = editor.getDoc(), rootDocument = document, isIE = Env.ie;
+		var width, height, editableDoc = editor.getDoc(), rootDocument = document, isIE = Env.ie && Env.ie < 11;
 
 		// Details about each resize handle how to scale etc
 		resizeHandles = {
@@ -424,6 +424,16 @@ define("tinymce/dom/ControlSelection", [
 				attachEvent(editor.getBody(), 'controlselect', nativeControlSelect);
 			} else {
 				disableGeckoResize();
+
+				if (Env.ie >= 11) {
+					// TODO: Drag/drop doesn't work
+					editor.on('mouseup mousedown', function(e) {
+						if (e.target.nodeName == 'IMG' || editor.selection.getNode().nodeName == 'IMG') {
+							e.preventDefault();
+							editor.selection.select(e.target);
+						}
+					});
+				}
 			}
 
 			editor.on('nodechange mousedown ResizeEditor', updateResizeRect);

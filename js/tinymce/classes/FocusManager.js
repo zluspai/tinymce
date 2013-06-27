@@ -52,7 +52,7 @@ define("tinymce/FocusManager", [
 						var ieSelection = editor.getDoc().selection;
 						lastRng = ieSelection && ieSelection.createRange ? ieSelection.createRange() : editor.selection.getRng();
 					});
-				} else if (editor.inline) {
+				} else if (editor.inline || Env.ie > 10) {
 					// On other browsers take snapshot on nodechange in inline mode since they have Ghost selections for iframes
 					editor.on('nodechange', function() {
 						var isInBody, node = document.activeElement;
